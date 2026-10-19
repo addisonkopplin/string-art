@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.DS_Store
+python/stringart.png
+python/stringart.txt
+python/stringart.gif

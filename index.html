@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>String Art Maker</title>
+<meta name="description" content="Turn a photo into string art in your browser: one thread wound between nails around a frame. Runs offline; nothing is uploaded.">
+<meta name="color-scheme" content="light">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<script>document.documentElement.classList.add('js')</script>
+<div class="app">
+<div class="page">
+<div class="top">
+  <h1>String Art Maker</h1>
+  <p class="lead">Turn a photo into string art: thread wound in straight lines between nails around a frame. Get the winding order, a preview, a shopping list and a printable nail template.</p>
+  <p class="privacy">Your photo is processed in your browser and never uploaded.</p>
+</div>
+
+<main id="main">
+<div class="tool">
+  <div class="controls c-photo">
+    <section aria-labelledby="h-photo">
+      <h2 id="h-photo">Photo</h2>
+      <div class="crop" id="crop" tabindex="0" aria-label="Photo crop. Drag to move the photo. Scroll or use the zoom slider to zoom.">
+        <canvas id="crop-canvas" width="840" height="840"></canvas>
+        <p class="crop-empty" id="crop-empty" contenteditable="true" inputmode="none" spellcheck="false" translate="no" aria-label="Paste a photo here">Upload, drop or paste a photo</p>
+      </div>
+      <div class="row btns">
+        <label class="btn" for="file">Choose photo</label>
+        <input id="file" type="file" accept="image/*,.heic,.heif" class="vh">
+        <button class="btn" id="sample" type="button">Use sample photo</button>
+        <button class="btn" id="paste" type="button" hidden>Paste image</button>
+      </div>
+      <p class="ex-jump"><a href="#examples">Or start from an example</a></p>
+      <div class="make">
+        <div class="run">
+          <button class="btn primary" id="run" type="button" disabled>Make string art</button>
+          <label class="check"><input type="checkbox" id="animate" checked> Show lines as they are drawn</label>
+        </div>
+        <div class="auto">
+          <button class="btn wide" id="auto" type="button" disabled>Find best settings</button>
+          <label class="check"><input type="checkbox" id="auto-colors" checked> Include thread colors and board</label>
+          <p class="hint">Tests nail counts, line counts and colors on this photo, then makes the best match. Takes a few seconds.</p>
+        </div>
+      </div>
+      <div class="field">
+        <label for="zoom">Zoom <output id="zoom-o">1.00×</output></label>
+        <input id="zoom" type="range" min="1" max="4" step="0.01" value="1">
+      </div>
+      <p class="hint">Drag to position. For a portrait, zoom in until the face fills the frame. Use JPEG, PNG or WebP.</p>
+      <p class="hint credit" id="credit" hidden>Sample photo: Albert Einstein, Orren Jack Turner, 1947, public domain.</p>
+    </section>
+  </div>
+
+  <section class="result" aria-labelledby="h-res">
+    <h2 id="h-res">Result</h2>
+    <div class="stage" id="stage"><canvas id="out" width="1200" height="1200" aria-label="String art result"></canvas></div>
+    <p class="status" id="status" aria-live="polite">Choose a photo or use the sample photo, then select Make string art.</p>
+    <div class="bar" aria-hidden="true"><span id="bar"></span></div>
+    <p class="hint auto-note" id="auto-note" hidden></p>
+    <div class="shop-list" id="shoplist" hidden></div>
+    <div class="row btns">
+      <button class="btn" id="dl-png" type="button" disabled>Download image (PNG)</button>
+      <button class="btn" id="dl-txt" type="button" disabled>Download nail order (TXT)</button>
+    </div>
+  </section>
+
+  <div class="controls c-set">
+    <section class="grp" aria-labelledby="h-frame">
+    <details open>
+      <summary><h2 id="h-frame">Frame</h2></summary>
+      <div class="field">
+        <span class="flabel" id="shape-l">Shape</span>
+        <div class="seg" role="radiogroup" aria-labelledby="shape-l">
+          <label><input type="radio" name="shape" value="circle" checked><span>Circle</span></label>
+          <label><input type="radio" name="shape" value="square"><span>Square</span></label>
+          <label><input type="radio" name="shape" value="rect"><span>Rectangle</span></label>
+          <label><input type="radio" name="shape" value="ellipse"><span>Oval</span></label>
+        </div>
+      </div>
+      <div class="field" id="aspect-f" hidden>
+        <label for="aspect">Proportions (width : height)</label>
+        <select id="aspect">
+          <option value="4:5" selected>4 : 5 portrait</option>
+          <option value="3:4">3 : 4 portrait</option>
+          <option value="2:3">2 : 3 portrait</option>
+          <option value="9:16">9 : 16 portrait</option>
+          <option value="5:4">5 : 4 landscape</option>
+          <option value="4:3">4 : 3 landscape</option>
+          <option value="3:2">3 : 2 landscape</option>
+          <option value="16:9">16 : 9 landscape</option>
+          <option value="custom">Custom width and height</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="preset">Frame size</label>
+        <select id="preset">
+          <option value="400" selected>40 cm</option>
+          <option value="600">60 cm</option>
+          <option value="800">80 cm</option>
+          <option value="1200">120 cm</option>
+          <option value="">Custom</option>
+        </select>
+      </div>
+      <div class="size">
+        <div class="field"><label for="fw" id="fw-l">Diameter</label><input id="fw" type="number" inputmode="decimal" min="10" max="200" step="0.5" value="40"></div>
+        <div class="field" id="fh-f" hidden><label for="fh">Height</label><input id="fh" type="number" inputmode="decimal" min="10" max="200" step="0.5" value="50"></div>
+        <div class="field"><label for="unit">Units</label><select id="unit"><option value="cm" selected>cm</option><option value="in">inches</option></select></div>
+      </div>
+      <p class="hint">Nails are evenly spaced along the edge. The size sets the template scale and thread lengths. Above 80 cm the lines blend more smoothly but show no extra detail, and need more thread and winding time.</p>
+    </details>
+    </section>
+
+    <section class="grp" aria-labelledby="h-color">
+    <details>
+      <summary><h2 id="h-color">Thread colors</h2></summary>
+      <div class="field">
+        <label for="palette">Palette</label>
+        <select id="palette">
+          <option value="black" selected>Black on white</option>
+          <option value="rgb">RGB: red, green, blue on black</option>
+          <option value="cmy">Printer colors: yellow, cyan, magenta on white</option>
+          <option value="bw">White and black on grey</option>
+          <option value="custom">Custom</option>
+        </select>
+      </div>
+      <div class="field">
+        <span class="flabel" id="threads-l">Threads, in winding order</span>
+        <ul class="threads" id="threads" aria-labelledby="threads-l"></ul>
+        <div class="row tight">
+          <button class="btn small" id="add-thread" type="button">Add thread</button>
+          <button class="btn small" id="del-thread" type="button">Remove last thread</button>
+        </div>
+        <p class="hint">DMC six-strand embroidery floss. Pick a color to get the closest floss. Up to three threads; the last lies on top.</p>
+      </div>
+      <div class="field">
+        <label for="board">Board</label>
+        <select id="board">
+          <option value="white">White</option>
+          <option value="black">Black</option>
+          <option value="grey">Grey</option>
+          <option value="wood">Natural wood</option>
+        </select>
+      </div>
+    </details>
+    </section>
+
+    <section class="grp" aria-labelledby="h-set">
+    <details>
+      <summary><h2 id="h-set">Nails and lines</h2></summary>
+      <div class="field">
+        <label for="nails">Nails <output id="nails-o">288</output></label>
+        <input id="nails" type="range" min="150" max="360" step="6" value="288">
+        <p class="hint">More nails give finer detail. <span id="spacing"></span></p>
+      </div>
+      <div class="field">
+        <label for="lines">Lines <output id="lines-o">1,500</output></label>
+        <input id="lines" type="range" min="200" max="6000" step="100" value="1500">
+        <p class="hint">The most straight segments between nails, all threads together. It stops sooner if no line brings the image closer to the photo. <span id="suggest"></span></p>
+      </div>
+    </details>
+    </section>
+  </div>
+</div>
+
+<!-- examples:start -->
+<section class="examples" id="examples" aria-labelledby="h-examples">
+  <h2 id="h-examples">Example</h2>
+  <p class="ex-intro">Made with this tool. Try this one loads the photo and settings and makes it again (the solver is deterministic, so you get the same 2,028 lines).</p>
+  <ul class="ex-grid">
+  <li class="ex-item">
+    <div class="ex-pics">
+      <img class="ex-art" src="examples/einstein-art.webp" width="480" height="480" loading="lazy" decoding="async" alt="String art of Albert Einstein">
+      <img class="ex-photo" src="examples/einstein-photo.webp" width="200" height="200" loading="lazy" decoding="async" alt="Original: Albert Einstein">
+    </div>
+    <p class="ex-cap"><b>Albert Einstein</b>60 cm circle, 468 nails, 2,028 lines, DMC 310 on white, 1.0 km</p>
+    <button class="btn small ex-try" type="button" data-example="einstein" aria-label="Try this one: Albert Einstein">Try this one</button>
+  </li>
+  </ul>
+  <p class="hint ex-credits">Photo: <a href="https://commons.wikimedia.org/wiki/File:Albert_Einstein_Head.jpg">Albert Einstein</a>, Orren Jack Turner, 1947, public domain (Wikimedia Commons).</p>
+</section>
+<!-- examples:end -->
+
+<section class="guide-opts" aria-labelledby="h-guide">
+  <h2 id="h-guide">Build guide</h2>
+  <div>
+    <p class="text">A nail template at the frame size, the shopping list and the winding sequence, step by step.</p>
+    <div class="opts">
+      <div class="field">
+        <label for="paper">Paper</label>
+        <select id="paper"><option value="letter">Letter</option><option value="a4">A4</option></select>
+      </div>
+      <div class="field">
+        <label for="mode">Template</label>
+        <select id="mode"><option value="tiled">Full size, tiled</option><option value="fit">Reduced, one page</option></select>
+      </div>
+    </div>
+    <button class="btn" id="print" type="button" disabled>Print build guide</button>
+    <p class="hint" id="guide-note">Available when the string art is finished.</p>
+  </div>
+</section>
+
+<section aria-labelledby="h-how">
+  <h2 id="h-how">How it works</h2>
+  <div class="text">
+    <p>Nail 0 is at the middle of the right side; numbers increase counter-clockwise. The program keeps a picture of the board with every line placed so far, each line at the real width of six-strand floss, about 0.45 mm, and on top of the earlier ones. At each step it adds the line that brings this picture closest to the photo as seen from a distance, from any thread’s current nail. It stops when no line helps or at the line count you set. Each nail pair is used once per thread.</p>
+    <p>With several threads, the threads take turns of at least 60 lines, so you change thread rarely. Between turns, a thread stays hooked at its last nail. A thread with under 3% of the lines is removed.</p>
+    <p>The preview and the PNG draw the lines the same way, at the size of the image. A 40 cm frame is covered about once by 1,500 lines.</p>
+    <p>Find best settings makes small test versions, draws them at real thread width, and compares each with the photo as seen from 5 times the frame size, at least 1 m: tone, color, fine detail and how well the photo’s main hues are kept. It tries black or white thread and DMC floss sets that mix to the photo’s colors and keep its main hues, or only black or white thread for a photo with little color. A grey or wood board is chosen only if it scores 8% better than white or black and shows at least as much detail. The line count stops where more lines no longer look closer. Fewer threads, lines or nails win if within 1% of the best score. Nails stay at least 3.5 mm apart, up to 360 nails. Larger frames use 4 mm spacing and up to 600 nails (480 on phones).</p>
+    <p>Colors are DMC floss numbers; screen colors are approximate. Lengths add 10% for knots and winding.</p>
+  </div>
+</section>
+</main>
+</div>
+</div>
+<div id="guide" class="guide" aria-hidden="true"></div>
+<footer class="page-foot"><p>String Art Maker. Open source under the MIT license. Everything runs in your browser; no photo leaves your computer.</p></footer>
+<script src="dmc.js"></script>
+<script src="offline.js"></script>
+<script src="core.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
