@@ -1,0 +1,28 @@
+Focus on subject: third-party components
+
+This folder contains third-party files used only by the "Focus on subject" option of the String Art Maker.
+The rest of the repository is under the MIT License (see ../LICENSE).
+
+------------------------------------------------------------------------
+U^2-Net (u2netp) model weights: u2netp.onnx
+------------------------------------------------------------------------
+Copyright (c) Xuebin Qin, Zichen Zhang, Chenyang Huang, Masood Dehghan, Osmar R. Zaiane and Martin Jagersand.
+Source: https://github.com/xuebinqin/U-2-Net
+Licensed under the Apache License, Version 2.0 (full text: LICENSE-APACHE-2.0.txt,
+also at https://www.apache.org/licenses/LICENSE-2.0).
+The ONNX export is the one distributed by rembg (MIT): https://github.com/danielgatis/rembg
+(original file sha256 309c8469258dda742793dce0ebea8e6dd393174f89934733ecc8b14c76f4ddd8).
+Modification: the weights are stored as float16, with Cast nodes back to float32; inference runs in float32.
+The upstream repository has no NOTICE file; this attribution is provided under section 4 of the license.
+
+Please cite:
+  Xuebin Qin, Zichen Zhang, Chenyang Huang, Masood Dehghan, Osmar R. Zaiane and Martin Jagersand.
+  "U^2-Net: Going Deeper with Nested U-Structure for Salient Object Detection."
+  Pattern Recognition 106, 107404, 2020. https://doi.org/10.1016/j.patcog.2020.107404
+
+------------------------------------------------------------------------
+ONNX Runtime Web 1.20.1: ort/ort.wasm.min.js, ort/ort-wasm-simd-threaded.mjs, ort/ort-wasm-simd-threaded.wasm
+------------------------------------------------------------------------
+Copyright (c) Microsoft Corporation.
+Source: https://github.com/microsoft/onnxruntime (npm package onnxruntime-web 1.20.1), unmodified.
+Licensed under the MIT License (full text: LICENSE-MIT-onnxruntime.txt).

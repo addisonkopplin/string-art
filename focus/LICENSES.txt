@@ -1,0 +1,15 @@
+Third-party files in this folder
+
+1. u2netp.onnx
+   U^2-Net (u2netp), by Xuebin Qin, Zichen Zhang, Chenyang Huang, Masood Dehghan, Osmar R. Zaiane and Martin Jagersand.
+   Source: https://github.com/xuebinqin/U-2-Net (code and released weights: Apache License 2.0)
+   ONNX export as distributed by rembg: https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2netp.onnx
+   (sha256 309c8469258dda742793dce0ebea8e6dd393174f89934733ecc8b14c76f4ddd8)
+   Changed: weights stored as float16 with Cast nodes back to float32 (half the file size). Inference is unchanged in float32.
+   Citation: Qin et al., "U^2-Net: Going Deeper with Nested U-Structure for Salient Object Detection", Pattern Recognition 106, 2020.
+   License: Apache License 2.0, https://www.apache.org/licenses/LICENSE-2.0 (full text: LICENSE-APACHE-2.0.txt)
+
+2. ort/ort.wasm.min.js, ort/ort-wasm-simd-threaded.mjs, ort/ort-wasm-simd-threaded.wasm
+   ONNX Runtime Web 1.20.1, Copyright (c) Microsoft Corporation.
+   Source: https://github.com/microsoft/onnxruntime (npm: onnxruntime-web)
+   License: MIT (full text: LICENSE-MIT-onnxruntime.txt)
