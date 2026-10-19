@@ -12,7 +12,8 @@ self.onmessage = function (e) {
   else if (m.type === 'joint') joint(m);
   else if (m.type === 'init') {
     ctx = { shape: m.shape, A: m.A, frameMM: m.frameMM || 400, photo: {}, cache: null, solveOpts: m.solveOpts };
-    for (const p of m.photos) ctx.photo[p.res] = { d: new Uint8ClampedArray(p.d), w: p.w, h: p.h, inside: SA.insideMask(m.shape, p.w, p.h) };
+    // p.m = subject mask (Uint8, 0-255) when Focus on subject is on: it becomes the solver's importance map
+    for (const p of m.photos) ctx.photo[p.res] = { d: new Uint8ClampedArray(p.d), w: p.w, h: p.h, inside: SA.insideMask(m.shape, p.w, p.h), wmap: p.m ? SA.importance(new Uint8Array(p.m), p.w, p.h, { bgW: m.bgW }) : null };
     const t = ctx.photo[SA.auto.EVAL];
     ctx.T = SA.target(t.d, t.w, t.h, t.inside, m.shape, { frameMM: ctx.frameMM });
     self.postMessage({ type: 'ready', chroma: ctx.T.chroma });
@@ -51,6 +52,8 @@ function joint(m) {
   const P = SA.prepare(n, m.nx, m.ny, m.edge, m.w, m.skip, null, lazy);
   const tPrep = performance.now() - t0;
   const inside = SA.insideMask(m.shape, m.w, m.h);
+  // m.wm = subject mask (Uint8, 0-255, w x h) when Focus on subject is on
+  const wmap = m.wm ? SA.importance(new Uint8Array(m.wm), m.w, m.h, { bgW: m.bgW, feather: m.feather }) : null;
   // With m.ed (the photo at the search's scoring size), the result is scored as the search scores
   // it at 70%, 80%, 90% of the lines and at the end, and cut to the best of these: the search
   // tests at a smaller size, where the best line count can come out higher.
@@ -77,7 +80,7 @@ function joint(m) {
       else self.postMessage({ type: 'progress', total, phase: 'check' });
     };
     const r = SA.solveJoint(P, new Uint8ClampedArray(m.d), inside, m.threads, m.board, {
-      frameMM: m.frameMM, maxLines: m.maxLines, minBlock: m.minBlock, switchPenalty: m.switchPenalty, detailW, detailEvery: m.detailEvery, hueW: m.hueW, toneK: m.toneK, hiW: m.hiW, centerW: m.centerW, fineW: m.fineW, fineS1: m.fineS1, fineS2: m.fineS2, fineEvery: m.fineEvery, detailCap: m.detailCap, refresh: m.refresh, reuseW: m.reuseW, reuseCell: m.reuseCell, edgeW: m.edgeW,
+      frameMM: m.frameMM, wmap, maxLines: m.maxLines, minBlock: m.minBlock, switchPenalty: m.switchPenalty, detailW, detailEvery: m.detailEvery, hueW: m.hueW, toneK: m.toneK, hiW: m.hiW, centerW: m.centerW, fineW: m.fineW, fineS1: m.fineS1, fineS2: m.fineS2, fineEvery: m.fineEvery, detailCap: m.detailCap, refresh: m.refresh, reuseW: m.reuseW, reuseCell: m.reuseCell, edgeW: m.edgeW,
       onLine: stream ? (t, a, b) => { buf.push(t, a, b); } : null,
       stop: (tot, st) => {
         total = tot;

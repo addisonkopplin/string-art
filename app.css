@@ -163,7 +163,7 @@ h1{font-size:2rem}
 .make .auto{padding-bottom:0;border-bottom:0}
 .make .btn.primary{margin-top:0}
 .make .hint{margin-top:.4rem}
-.result .stage{max-width:min(44rem,calc(100vh - 21rem));min-width:16rem}
+.result .stage{max-width:min(44rem,calc(100vh - 22.5rem));min-width:16rem}
 .result canvas{object-fit:contain}
 .grp{padding:0!important}
 .grp details{padding:0 0 1rem}
@@ -190,3 +190,5 @@ h1{font-size:2rem}
 @media (min-width:861px) and (max-height:960px){.c-photo .crop{max-width:12rem}.make{margin-top:.75rem;padding-top:.75rem}.make .run{margin-bottom:.5rem}.c-photo .field{margin-top:.5rem}}
 .page-foot{max-width:72rem;margin:0 auto;padding:0 2.5rem 3rem;font-size:.8125rem;color:var(--mute)}
 @media print{.page-foot{display:none}}
+.focus .check{margin-top:0;justify-content:flex-start;align-items:center;font-size:.875rem;font-weight:400}
+.focus .hint{margin-top:.3rem}

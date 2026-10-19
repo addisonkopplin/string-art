@@ -392,6 +392,40 @@
     sl.hidden = false;
   }
 
+  // ---------- Focus on subject ----------
+  // The subject mask comes from focus/focus.js (U^2-Net in the browser), loaded only when the option is on.
+  // It is made from the crop as the frame shows it and kept until the photo or crop changes. The worker
+  // turns it into weights: the background's error counts SA.FOCUS_BG times (core.js SA.importance).
+  const FOCUS = { mask: null, sig: '' };
+  const focusSig = () => [S.imgId, S.zoom.toFixed(4), S.cx.toFixed(2), S.cy.toFixed(2), frameAspect().toFixed(4)].join('|');
+  const loadFocus = () => (window.SAFocus ? Promise.resolve() : new Promise((res, rej) => {
+    const sc = document.createElement('script'); sc.src = 'focus/focus.js'; sc.onload = res; sc.onerror = () => rej(new Error('focus')); document.head.appendChild(sc);
+  }));
+  async function ensureMask() {
+    const sig = focusSig(); if (FOCUS.mask && FOCUS.sig === sig) return FOCUS.mask;
+    await loadFocus();
+    const N = SAFocus.SIZE, t0 = performance.now(), m = await SAFocus.mask(photoPixels(N, N));
+    const c = document.createElement('canvas'); c.width = c.height = N;
+    const x = c.getContext('2d'), img = x.createImageData(N, N); let k = 0;
+    for (let i = 0; i < N * N; i++) { const v = m[i]; img.data[i * 4] = img.data[i * 4 + 1] = img.data[i * 4 + 2] = v; img.data[i * 4 + 3] = 255; if (v > 127) k++; }
+    x.putImageData(img, 0, 0);
+    FOCUS.mask = { canvas: c, share: k / (N * N), ms: performance.now() - t0 }; FOCUS.sig = sig;
+    return FOCUS.mask;
+  }
+  // a subject is used only if it covers 3% to 97% of the frame; otherwise the whole photo counts as before
+  const focusUsable = (fm) => fm && typeof fm === 'object' && fm.share > 0.03 && fm.share < 0.97;
+  function maskPixels(w, h) {
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const x = c.getContext('2d', { willReadFrequently: true }); x.imageSmoothingQuality = 'high'; x.drawImage(FOCUS.mask.canvas, 0, 0, w, h);
+    const d = x.getImageData(0, 0, w, h).data, m = new Uint8Array(w * h);
+    for (let i = 0; i < m.length; i++) m[i] = d[i * 4];
+    return m;
+  }
+  // null when the option is off; 'error' when the model could not load
+  const focusPrep = (on) => (on ? ensureMask().catch(() => 'error') : Promise.resolve(null));
+  const focusNote = (fm) => (fm === 'error' ? ' The subject finder could not load, so the whole photo was used.' : fm && !focusUsable(fm) ? ' No clear subject was found, so the whole photo was used.' : '');
+  $('focus').addEventListener('change', () => { if ($('focus').checked) loadFocus().then(() => SAFocus.load()).catch(() => {}); });
+
   // ---------- run ----------
   let raf = 0, timing = null;
   function setStatus(t) { $('status').textContent = t; }
@@ -414,9 +448,15 @@
     setStatus('Placing lines…');
     $('run').textContent = 'Making string art…'; $('run').disabled = true; $('auto').disabled = true;
     S.running = true;
-    setTimeout(() => {
+    // examples always reproduce their stored result, so they never use Focus on subject
+    const useFocus = $('focus').checked && !S.noFocus; S.noFocus = false;
+    if (useFocus) setStatus('Finding the subject…');
+    focusPrep(useFocus).then((fm) => setTimeout(() => {
+      if (!S.running) return;
+      if (useFocus) setStatus('Placing lines…');
       const d = photoPixels(w, h), [ew, eh] = SA.workSize(A, SA.auto.EVAL), ed = photoPixels(ew, eh);
-      const R = S.result = { key: frameKey(), shape: F.shape, A, lay, frameMM, nails: n, lines: L, strength: STRENGTH, mode, light, board: c.board, boardKey: C.board, finished: false,
+      const wm = focusUsable(fm) ? maskPixels(w, h) : null;
+      const R = S.result = { key: frameKey(), shape: F.shape, A, lay, frameMM, nails: n, lines: L, strength: STRENGTH, mode, light, board: c.board, boardKey: C.board, finished: false, focus: !!wm, focusNote: focusNote(fm),
         threads: c.threads.map((col, i) => ({ color: col, code: C.threads[i], order: null, count: 0 })), blocks: null, switches: 0 };
       resizeOut(); paintBoard(octx, out.width, out.height, R);
       timing = null;
@@ -448,9 +488,9 @@
       wk.postMessage({ type: 'joint', w, h, nails: n, nx: NX, ny: NY, edge: lay.edge, skip: SA.skipFor(n), d: d.buffer, shape: F.shape,
         threads: c.threads, board: c.board, maxLines: L, frameMM, A, ed: ed.buffer, ew, eh,
         // the solver setting the search chose for these threads (sa7 palette guard); undefined = default
-        detailW: S.detailFor === threadSig() ? S.detailW : undefined, tableMB: LOWMEM ? 64 : 256 }, [d.buffer, ed.buffer]);
+        detailW: S.detailFor === threadSig() ? S.detailW : undefined, tableMB: LOWMEM ? 64 : 256, wm: wm ? wm.buffer : undefined, bgW: wm ? SA.FOCUS_BG : undefined }, [d.buffer, ed.buffer].concat(wm ? [wm.buffer] : []));
       if (window.matchMedia('(max-width: 860px)').matches) $('h-res').scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 30);
+    }, 30));
   }
   function stop() { S.running = false; $('run').textContent = 'Make string art'; $('run').disabled = !S.img; $('auto').disabled = !S.img; }
   // threads under 3% of the lines are left out; their turns are removed and the others renumbered
@@ -478,7 +518,7 @@
       '. Calculated in ' + (timing.totalMs / 1000).toFixed(1) + ' s.' +
       (timing.cut ? ' It stopped at ' + fmt(timing.cut.to) + ' of ' + fmt(timing.cut.from) + ' lines: more lines did not look closer to the photo from a distance.'
         : R.lines + drop.reduce((p, t) => p + t.count, 0) < asked ? ' It stopped before ' + fmt(asked) + ' lines: no further line brings the image closer to the photo.' : '') +
-      (drop.length ? ' Removed ' + drop.map((t) => dmcLabel(t.code)).join(' and ') + ': under 3% of the lines.' : ''));
+      (drop.length ? ' Removed ' + drop.map((t) => dmcLabel(t.code)).join(' and ') + ': under 3% of the lines.' : '') + (R.focusNote || ''));
     if (S.onFinish) { const f = S.onFinish; S.onFinish = null; f(R); }
     document.body.dataset.state = 'done';
   }
@@ -540,7 +580,10 @@
     setStatus('Finding best settings…'); setBar(0);
     await new Promise((r) => setTimeout(r, 30));
     if (st.cancelled) return;
-    const photos = [...new Set([AU.FIRST, AU.COARSE, AU.EVAL])].map((res) => { const [w, h] = SA.workSize(A, res); return { res, w, h, d: photoPixels(w, h).buffer }; });
+    // with Focus on subject, every test uses the subject mask too
+    const fm = await focusPrep($('focus').checked);
+    if (st.cancelled) return;
+    const photos = [...new Set([AU.FIRST, AU.COARSE, AU.EVAL])].map((res) => { const [w, h] = SA.workSize(A, res); return Object.assign({ res, w, h, d: photoPixels(w, h).buffer }, focusUsable(fm) ? { m: maskPixels(w, h).buffer } : {}); });
     // fewer workers on devices with few cores
     const NW = AU.workers(navigator.hardwareConcurrency);
     for (let i = 0; i < NW; i++) st.workers.push({ w: SAOffline.worker(), cache: null });
@@ -812,12 +855,25 @@
     setZoom(x.crop.zoom); S.cx = x.crop.cx * S.img.width; S.cy = x.crop.cy * S.img.height; drawCrop();
     setRange('nails', x.nails); setRange('lines', x.lines);
     S.onFinish = null; document.body.dataset.state = 'running';
-    start();
+    S.noFocus = true; start();
   }
   document.querySelectorAll('[data-example]').forEach((b) => b.addEventListener('click', (e) => {
     e.preventDefault(); tryExample(b.dataset.example);
     const t = $('h-photo'); if (t && t.scrollIntoView) t.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }));
+
+  // the result canvas follows the size it is shown at (a window resize or rotation), drawn sharp again
+  if (window.ResizeObserver) {
+    let rt = 0, lastW = out.clientWidth;
+    new ResizeObserver(() => {
+      if (out.clientWidth === lastW) return; lastW = out.clientWidth;
+      clearTimeout(rt);
+      rt = setTimeout(() => {
+        if (S.running) return;   // a running result is painted in full when it finishes
+        if (S.result && S.result.finished) { resizeOut(); redrawResult(); } else if (!S.result) resizeOut(true);
+      }, 150);
+    }).observe($('stage'));
+  }
 
   // ---------- init ----------
   renderThreads(); syncFrameInputs(); frameChanged();
@@ -833,5 +889,5 @@
     return { nails: R.nails, lines: R.lines, threads: R.threads.map((t) => t.code), board: R.boardKey, meters: threadMeters(R).reduce((a, b) => a + b, 0), shape: R.shape, frameMM: [fw(), fh()],
       hash: R.threads.map((t) => Array.from(t.order.subarray(0, t.count + 1)).join(',')).join('|') };
   }
-  window.__stringArt = { buildGuide, nailOrderText, nailLayout, state: S, frame: F, colors: C, dmc: DMC, nearestDMC, core: SA, scoreResult, renderPNG, resultInfo };
+  window.__stringArt = { focus: FOCUS, buildGuide, nailOrderText, nailLayout, state: S, frame: F, colors: C, dmc: DMC, nearestDMC, core: SA, scoreResult, renderPNG, resultInfo };
 })();

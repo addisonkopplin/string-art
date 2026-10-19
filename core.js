@@ -451,15 +451,18 @@
         if (lamH) { hueOf(q2[1], q2[2]); hb1[t][i] = hB; hf1[t][i] = hF; hc1[t][i] = hC; }
       }
     }
+    // o.wmap (optional, per pixel, 0..1): importance of each pixel's error (SA.importance: the subject 1,
+    // the background a low weight). Every error term of the pixel is scaled by it (weighted least squares).
+    const wm = o.wmap && o.wmap.length === N ? o.wmap : null;
     function upd(i, onlyL) {   // onlyL: at a refresh only the linear part moves (Qt depends on the canvas only)
       if (!inside[i]) return;
-      const g = cell[i];
-      const wp = wpx ? wpx[i] : 1, g0 = Wc[0] * alpha[0] * e[0][i] * wp + (lamD ? lamD * (Hc[dcell[i]] + kD * (e[0][i] - e0r[i])) : 0) + (lamF ? lamF * (Hf[i] + kF * (e[0][i] - e0f[i])) : 0), g1 = Wc[1] * (alpha[1] * e[1][i] + beta[1] * F[1][g]), g2 = Wc[2] * (alpha[2] * e[2][i] + beta[2] * F[2][g]);
+      const g = cell[i], mi = wm ? wm[i] : 1;
+      const wp = wpx ? wpx[i] : 1, g0 = mi * (Wc[0] * alpha[0] * e[0][i] * wp + (lamD ? lamD * (Hc[dcell[i]] + kD * (e[0][i] - e0r[i])) : 0) + (lamF ? lamF * (Hf[i] + kF * (e[0][i] - e0f[i])) : 0)), g1 = mi * Wc[1] * (alpha[1] * e[1][i] + beta[1] * F[1][g]), g2 = mi * Wc[2] * (alpha[2] * e[2][i] + beta[2] * F[2][g]);
       const h0 = lamH ? hueG(hb0[i], hf0[i], hc0[i]) : 0, ic0 = 1 / c0;
       for (let t = 0; t < K; t++) {
         const D = Dt[t], DL = D[0][i], Da = D[1][i], Db = D[2][i];
         Lt[t][i] = 2 * (g0 * DL + g1 * Da + g2 * Db) + (lamH ? (hueG(hb1[t][i], hf1[t][i], hc1[t][i]) - h0) * ic0 : 0) + (rpen ? rpen[i] : 0);
-        if (!onlyL) Qt[t][i] = (qa[0] + (wp - 1) * Wc[0] * alpha[0]) * DL * DL + qa[1] * Da * Da + qa[2] * Db * Db;
+        if (!onlyL) Qt[t][i] = mi * ((qa[0] + (wp - 1) * Wc[0] * alpha[0]) * DL * DL + qa[1] * Da * Da + qa[2] * Db * Db);
       }
     }
     // sa9 options:
@@ -598,6 +601,24 @@
     }
     closeBlock();
     return { orders: orders.map((x) => Uint16Array.from(x)), counts: orders.map((x) => x.length - 1), blocks, total, switches };
+  };
+
+  // ---------- subject focus (background removal as a soft importance mask) ----------
+  /* mask: subject mask at w x h (Uint8Array 0-255 or Float32Array 0-1, from the segmentation model).
+     Returns per-pixel weights for SA.solveJoint's o.wmap: 1 on the subject, o.bgW (default SA.FOCUS_BG)
+     on the background, with an edge feathered over o.feather (share of the longer side). */
+  SA.FOCUS_BG = 0.3; SA.FOCUS_FEATHER = 0.02;
+  SA.subjectMask = function (mask, w, h, o) {
+    o = o || {}; const N = w * h, sc = mask instanceof Uint8Array || mask instanceof Uint8ClampedArray ? 1 / 255 : 1, m = new Float32Array(N);
+    // a soft threshold first (the model's grey halo counts as background), then the feather
+    for (let i = 0; i < N; i++) { const v = Math.min(1, Math.max(0, (mask[i] * sc - 0.15) / 0.7)); m[i] = v * v * (3 - 2 * v); }
+    const fs = (o.feather == null ? SA.FOCUS_FEATHER : o.feather) * Math.max(w, h);
+    return fs > 0.5 ? SA.boxBlur(m, w, h, fs) : m;
+  };
+  SA.importance = function (mask, w, h, o) {
+    o = o || {}; const bg = o.bgW == null ? SA.FOCUS_BG : o.bgW, m = SA.subjectMask(mask, w, h, o), out = new Float32Array(w * h);
+    for (let i = 0; i < out.length; i++) out[i] = bg + (1 - bg) * Math.min(1, Math.max(0, m[i]));
+    return out;
   };
 
   // ---------- render ----------
@@ -1108,7 +1129,7 @@
         worse = last && res.score > last.score ? worse + 1 : 0;
         results.push(res); last = res;
       };
-      const r = SA.solveJoint(ctx.cache.P, ph.d, ph.inside, job.threads, job.board, Object.assign({ frameMM: ctx.frameMM, maxLines: cps[cps.length - 1], detailEvery: AUTO.DETAIL_EVERY }, ctx.jointOpts || {}, extra, {
+      const r = SA.solveJoint(ctx.cache.P, ph.d, ph.inside, job.threads, job.board, Object.assign({ frameMM: ctx.frameMM, maxLines: cps[cps.length - 1], detailEvery: AUTO.DETAIL_EVERY }, ctx.jointOpts || {}, ph.wmap ? { wmap: ph.wmap } : {}, extra, {
         stop: (total, st) => {
           // past the time limit: score what is there and stop
           if (job.deadline && total > 0 && !(total & 15) && Date.now() > job.deadline) { if (!last || last.L !== total) evalAt(total, st.orders, st.blocks); late = true; return true; }
